@@ -1,0 +1,139 @@
+#CRYSTALS-Kyber Mock demo with RSA for key management and multi user usage
+# Install the necessary cryptographic libraries
+!pip install pycryptodome cryptography
+
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import padding
+from Crypto.Random import get_random_bytes
+import os
+
+# Simulate Kyber encryption with simple placeholder functions (Using a consistent key for encryption/decryption)
+def kyber_encrypt(message, encryption_key):
+    """
+    Encrypt a message using a mock Kyber encryption function (as a placeholder).
+    In practice, you would use a Kyber implementation, but here we simulate it with XOR.
+    """
+    encrypted_message = bytes([byte ^ encryption_key[i % len(encryption_key)] for i, byte in enumerate(message)])
+    return encrypted_message
+
+def kyber_decrypt(encrypted_message, decryption_key):
+    """
+    Decrypt a message using a mock Kyber decryption function (as a placeholder).
+    """
+    decrypted_message = bytes([byte ^ decryption_key[i % len(decryption_key)] for i, byte in enumerate(encrypted_message)])
+    return decrypted_message
+
+# RSA key management for encrypting the Kyber keys
+def generate_rsa_keys():
+    """
+    Generate RSA key pairs for two users to exchange keys securely.
+    """
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+        backend=default_backend()
+    )
+    public_key = private_key.public_key()
+    
+    # Export the keys to PEM format
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    
+    return private_pem, public_pem
+
+def encrypt_rsa(public_key_pem, data):
+    """
+    Encrypt data using RSA and a given public key.
+    """
+    public_key = serialization.load_pem_public_key(public_key_pem, backend=default_backend())
+    encrypted_data = public_key.encrypt(
+        data,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    return encrypted_data
+
+def decrypt_rsa(private_key_pem, encrypted_data):
+    """
+    Decrypt data using RSA and a given private key.
+    """
+    private_key = serialization.load_pem_private_key(private_key_pem, password=None, backend=default_backend())
+    decrypted_data = private_key.decrypt(
+        encrypted_data,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
+    )
+    return decrypted_data
+
+# Function to simulate secure file encryption for two users
+def encrypt_file_for_users(file_path, user1_pub_key, user2_pub_key):
+    """
+    Encrypt a file using Kyber and RSA. 
+    The file is first encrypted with Kyber, and the Kyber key is then encrypted using RSA for each user.
+    """
+    # Read the file content
+    with open(file_path, 'rb') as file:
+        file_data = file.read()
+    
+    # Simulate Kyber encryption using a random key (public_key acts as a simple XOR key)
+    encryption_key = get_random_bytes(32)  # Generate a consistent key for encryption/decryption
+    kyber_encrypted_data = kyber_encrypt(file_data, encryption_key)  # Placeholder encryption
+    
+    # Encrypt the Kyber key (here we are just simulating with the public key)
+    encrypted_kyber_key_user1 = encrypt_rsa(user1_pub_key, encryption_key)
+    encrypted_kyber_key_user2 = encrypt_rsa(user2_pub_key, encryption_key)
+    
+    return kyber_encrypted_data, encrypted_kyber_key_user1, encrypted_kyber_key_user2
+
+def decrypt_file_for_user(encrypted_data, encrypted_kyber_key, private_key):
+    """
+    Decrypt a file for a user by first decrypting the Kyber key with the user's private RSA key,
+    then decrypting the file using Kyber.
+    """
+    # Decrypt the Kyber key using RSA and the user's private key
+    kyber_key = decrypt_rsa(private_key, encrypted_kyber_key)
+    
+    # Decrypt the file data using the Kyber key (simulating with XOR here)
+    decrypted_data = kyber_decrypt(encrypted_data, kyber_key)
+    
+    return decrypted_data
+
+# Generate RSA keys for two users
+user1_private_key, user1_public_key = generate_rsa_keys()
+user2_private_key, user2_public_key = generate_rsa_keys()
+
+# Simulate encryption of a file
+file_path = 'sample_file.txt'  # You can create this file in Google Colab or use an existing one
+with open(file_path, 'w') as file:
+    file.write('My name is Marsad and I love video games.')
+
+# Encrypt the file for both users
+encrypted_data, encrypted_kyber_key_user1, encrypted_kyber_key_user2 = encrypt_file_for_users(file_path, user1_public_key, user2_public_key)
+
+# Simulate decryption by user1
+decrypted_data_user1 = decrypt_file_for_user(encrypted_data, encrypted_kyber_key_user1, user1_private_key)
+print("Decrypted by User1: ", decrypted_data_user1.decode('utf-8'))
+
+# Simulate decryption by user2
+decrypted_data_user2 = decrypt_file_for_user(encrypted_data, encrypted_kyber_key_user2, user2_private_key)
+print("Decrypted by User2: ", decrypted_data_user2.decode('utf-8'))
+
+
+
